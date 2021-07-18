@@ -10,19 +10,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type tcpClient struct {
+type TCPClient struct {
 	restyClient *resty.Client
 	serverURL   string
 }
 
-func NewTCPClient(serverURL string) *tcpClient {
-	return &tcpClient{
+func NewTCPClient(serverURL string) *TCPClient {
+	return &TCPClient{
 		restyClient: resty.New(),
 		serverURL:   serverURL,
 	}
 }
 
-func (p *tcpClient) Dail() (conn net.Conn, err error) {
+func (p *TCPClient) Dail() (conn net.Conn, err error) {
 	resp, err := p.restyClient.R().
 		SetHeader("action", "handshake").
 		Post(p.serverURL)

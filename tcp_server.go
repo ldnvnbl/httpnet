@@ -19,7 +19,7 @@ const (
 	actionClose     = "close"
 )
 
-type tcpServer struct {
+type TCPServer struct {
 	addr     string
 	sfNode   *snowflake.Node
 	connChan chan *serverConn
@@ -28,9 +28,9 @@ type tcpServer struct {
 	m  map[string]*serverConn
 }
 
-func NewTcpServer(addr string) *tcpServer {
+func NewTcpServer(addr string) *TCPServer {
 	sfNode, _ := snowflake.NewNode(1)
-	return &tcpServer{
+	return &TCPServer{
 		sfNode:   sfNode,
 		addr:     addr,
 		connChan: make(chan *serverConn, 10),
@@ -38,7 +38,7 @@ func NewTcpServer(addr string) *tcpServer {
 	}
 }
 
-func (p *tcpServer) Run() (err error) {
+func (p *TCPServer) Run() (err error) {
 	srv := &http.Server{
 		Addr:    p.addr,
 		Handler: p,
@@ -46,26 +46,26 @@ func (p *tcpServer) Run() (err error) {
 	return srv.ListenAndServe()
 }
 
-func (p *tcpServer) getConn(connId string) (*serverConn, bool) {
+func (p *TCPServer) getConn(connId string) (*serverConn, bool) {
 	p.rw.RLock()
 	conn, ok := p.m[connId]
 	p.rw.RUnlock()
 	return conn, ok
 }
 
-func (p *tcpServer) setConn(connId string, conn *serverConn) {
+func (p *TCPServer) setConn(connId string, conn *serverConn) {
 	p.rw.Lock()
 	p.m[connId] = conn
 	p.rw.Unlock()
 }
 
-func (p *tcpServer) deleteConn(connId string) {
+func (p *TCPServer) deleteConn(connId string) {
 	p.rw.Lock()
 	delete(p.m, connId)
 	p.rw.Unlock()
 }
 
-func (p *tcpServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (p *TCPServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	action := req.Header.Get("action")
 	fmt.Println("action:", action)
 
@@ -94,7 +94,7 @@ func (p *tcpServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (p *tcpServer) handleHandshake(rw http.ResponseWriter, req *http.Request) {
+func (p *TCPServer) handleHandshake(rw http.ResponseWriter, req *http.Request) {
 	connId := p.sfNode.Generate().String()
 	conn := &serverConn{
 		id:        connId,
@@ -107,7 +107,7 @@ func (p *tcpServer) handleHandshake(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (p *tcpServer) Accept() (conn net.Conn, err error) {
+func (p *TCPServer) Accept() (conn net.Conn, err error) {
 	conn = <-p.connChan
 	return
 }
