@@ -2,7 +2,9 @@ package httpnet
 
 import (
 	"fmt"
+	"net"
 	"strconv"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
@@ -20,7 +22,7 @@ func NewTCPClient(serverURL string) *tcpClient {
 	}
 }
 
-func (p *tcpClient) Dail() (conn *clientConn, err error) {
+func (p *tcpClient) Dail() (conn net.Conn, err error) {
 	resp, err := p.restyClient.R().
 		SetHeader("action", "handshake").
 		Post(p.serverURL)
@@ -124,5 +126,25 @@ func (p *clientConn) Close() error {
 		err = fmt.Errorf("tcp client conn close failed, not 200")
 		return err
 	}
+	return nil
+}
+
+func (p *clientConn) LocalAddr() net.Addr {
+	return nil
+}
+
+func (p *clientConn) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (p *clientConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (p *clientConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (p *clientConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }

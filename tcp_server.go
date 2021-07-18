@@ -2,12 +2,14 @@ package httpnet
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/snowflake"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -105,7 +107,7 @@ func (p *tcpServer) handleHandshake(rw http.ResponseWriter, req *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (p *tcpServer) Accept() (conn *serverConn, err error) {
+func (p *tcpServer) Accept() (conn net.Conn, err error) {
 	conn = <-p.connChan
 	return
 }
@@ -155,4 +157,24 @@ func (p *serverConn) handleClientWrite(rw http.ResponseWriter, req *http.Request
 		return
 	}
 	p.readChan <- data
+}
+
+func (p *serverConn) LocalAddr() net.Addr {
+	return nil
+}
+
+func (p *serverConn) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (p *serverConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (p *serverConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (p *serverConn) SetWriteDeadline(t time.Time) error {
+	return nil
 }
