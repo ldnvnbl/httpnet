@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -54,6 +55,9 @@ func (p *TCPServer) getConn(connId string) (*serverConn, bool) {
 }
 
 func (p *TCPServer) setConn(connId string, conn *serverConn) {
+
+	log.Infof("setConn, connId: %s", connId)
+
 	p.rw.Lock()
 	p.m[connId] = conn
 	p.rw.Unlock()
@@ -67,7 +71,6 @@ func (p *TCPServer) deleteConn(connId string) {
 
 func (p *TCPServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	action := req.Header.Get("action")
-	fmt.Println("action:", action)
 
 	if action == actionHandshake {
 		p.HandleHandshake(rw, req)
@@ -90,7 +93,8 @@ func (p *TCPServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case actionClose:
 		p.deleteConn(connId)
 	default:
-
+		log.Errorf("invalid action: %s", action)
+		rw.WriteHeader(http.StatusBadRequest)
 	}
 }
 
@@ -99,15 +103,15 @@ func (p *TCPServer) HandleHandshake(rw http.ResponseWriter, req *http.Request) n
 	if action != actionHandshake {
 		return nil
 	}
-
+	log.Infof("tcp server handle handshake")
 	connId := p.sfNode.Generate().String()
 	conn := &serverConn{
-		id:        connId,
+		connId:    connId,
 		readChan:  make(chan []byte, 100),
 		writeChan: make(chan []byte, 100),
 	}
 	p.setConn(connId, conn)
-	p.connChan <- conn
+	//p.connChan <- conn
 	rw.Header().Set("conn-id", connId)
 	rw.WriteHeader(http.StatusOK)
 	return conn
@@ -119,10 +123,13 @@ func (p *TCPServer) Accept() (conn net.Conn, err error) {
 }
 
 type serverConn struct {
-	id string
+	connId string
 
 	readChan  chan []byte // client write to this chan
 	writeChan chan []byte // client read from this chan
+
+	writeSeqId uint64
+	readSeqId  uint64
 }
 
 func (p *serverConn) Read(b []byte) (n int, err error) {
@@ -147,8 +154,11 @@ func (p *serverConn) Close() error {
 }
 
 func (p *serverConn) handleClientRead(rw http.ResponseWriter, req *http.Request) {
-	data := <- p.writeChan
+	data := <-p.writeChan
+	p.writeSeqId++
 	rw.WriteHeader(http.StatusOK)
+	rw.Header().Set("seq-id", strconv.FormatUint(p.writeSeqId, 10))
+	rw.Header().Set("size", strconv.Itoa(len(data)))
 	_, err := rw.Write(data)
 	if err != nil {
 		log.Errorf("write data to client failed: %v", err)
@@ -157,12 +167,59 @@ func (p *serverConn) handleClientRead(rw http.ResponseWriter, req *http.Request)
 }
 
 func (p *serverConn) handleClientWrite(rw http.ResponseWriter, req *http.Request) {
+	sizeStr := req.Header.Get("size")
+	if len(sizeStr) == 0 {
+		rw.WriteHeader(http.StatusBadRequest)
+		log.Warnf("handle client write size is nil")
+		return
+	}
+
+	size, err := strconv.Atoi(sizeStr)
+	if err != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		log.Warnf("handle client size str is invalid: %s", sizeStr)
+		return
+	}
+
+	seqIdStr := req.Header.Get("seq-id")
+	if len(seqIdStr) == 0 {
+		rw.WriteHeader(http.StatusBadRequest)
+		log.Warnf("handle client write seq id is nil")
+		return
+	}
+
+	seqId, err := strconv.ParseUint(seqIdStr, 10, 64)
+	if err != nil {
+		rw.WriteHeader(http.StatusBadRequest)
+		log.Warnf("invalid seq id str: %s", seqIdStr)
+		return
+	}
+
+	if seqId != p.readSeqId+1 {
+		rw.WriteHeader(http.StatusBadRequest)
+		log.Errorf("invalid sequence id")
+		return
+	}
+
+	p.readSeqId = seqId
+
+	log.Infof("handle client write, connId: %s, seqId: %d", p.connId, seqId)
+
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		log.Errorf("read data from client failed: %v", err)
 		return
 	}
 	p.readChan <- data
+
+	if size != len(data) {
+		rw.WriteHeader(http.StatusBadRequest)
+		log.Errorf("handle client write, data size is not equal header size")
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	rw.Header().Set("write-size", strconv.Itoa(len(data)))
 }
 
 func (p *serverConn) LocalAddr() net.Addr {
