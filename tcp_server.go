@@ -70,7 +70,7 @@ func (p *TCPServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	fmt.Println("action:", action)
 
 	if action == actionHandshake {
-		p.handleHandshake(rw, req)
+		p.HandleHandshake(rw, req)
 		return
 	}
 
@@ -94,7 +94,12 @@ func (p *TCPServer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (p *TCPServer) handleHandshake(rw http.ResponseWriter, req *http.Request) {
+func (p *TCPServer) HandleHandshake(rw http.ResponseWriter, req *http.Request) net.Conn {
+	action := req.Header.Get("action")
+	if action != actionHandshake {
+		return nil
+	}
+
 	connId := p.sfNode.Generate().String()
 	conn := &serverConn{
 		id:        connId,
@@ -105,6 +110,7 @@ func (p *TCPServer) handleHandshake(rw http.ResponseWriter, req *http.Request) {
 	p.connChan <- conn
 	rw.Header().Set("conn-id", connId)
 	rw.WriteHeader(http.StatusOK)
+	return conn
 }
 
 func (p *TCPServer) Accept() (conn net.Conn, err error) {
