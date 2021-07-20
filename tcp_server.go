@@ -2,6 +2,7 @@ package httpnet
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -65,6 +66,10 @@ func (p *TCPServer) setConn(connId string, conn *serverConn) {
 
 func (p *TCPServer) deleteConn(connId string) {
 	p.rw.Lock()
+	conn := p.m[connId]
+	if conn != nil {
+		_ = conn.Close()
+	}
 	delete(p.m, connId)
 	p.rw.Unlock()
 }
@@ -130,9 +135,16 @@ type serverConn struct {
 
 	writeSeqId uint64
 	readSeqId  uint64
+
+	isClosed bool
 }
 
 func (p *serverConn) Read(b []byte) (n int, err error) {
+
+	if p.isClosed {
+		return 0, io.EOF
+	}
+
 	data := <-p.readChan
 	if len(data) > len(b) {
 		err = fmt.Errorf("read too large size data")
@@ -144,12 +156,20 @@ func (p *serverConn) Read(b []byte) (n int, err error) {
 }
 
 func (p *serverConn) Write(b []byte) (n int, err error) {
-	p.writeChan <- b
+	if p.isClosed {
+		return 0, io.EOF
+	}
+
+	data := make([]byte, len(b))
+	copy(data, b)
+
+	p.writeChan <- data
 	n = len(b)
 	return
 }
 
 func (p *serverConn) Close() error {
+	p.isClosed = true
 	return nil
 }
 
