@@ -16,9 +16,12 @@ type TCPClient struct {
 	serverURL   string
 }
 
-func NewTCPClient(serverURL string) *TCPClient {
+func NewTCPClient(serverURL string, customHttpHeader map[string]string) *TCPClient {
 
 	log.Infof("NewTCPClient, serverURL: %s", serverURL)
+
+	r := resty.New()
+	r.SetHeaders(customHttpHeader)
 
 	return &TCPClient{
 		restyClient: resty.New(),
