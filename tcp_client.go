@@ -24,7 +24,7 @@ func NewTCPClient(serverURL string, customHttpHeader map[string]string) *TCPClie
 	r.SetHeaders(customHttpHeader)
 
 	return &TCPClient{
-		restyClient: resty.New(),
+		restyClient: r,
 		serverURL:   serverURL,
 	}
 }
