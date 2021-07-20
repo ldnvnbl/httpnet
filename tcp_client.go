@@ -102,7 +102,7 @@ func (p *clientConn) Read(b []byte) (n int, err error) {
 		return
 	}
 
-	log.Infof("client read, connId: %s, seqId: %d", p.connId, seqId)
+	log.Debugf("client read, connId: %s, seqId: %d", p.connId, seqId)
 
 	p.readSeqId = seqId
 
@@ -163,8 +163,6 @@ func (p *clientConn) Write(b []byte) (n int, err error) {
 	if n != len(b) {
 		log.Errorf("invalid client write size")
 	}
-
-	log.Infof("client write data size: %d", len(b))
 	return
 }
 

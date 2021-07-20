@@ -57,7 +57,7 @@ func (p *TCPServer) getConn(connId string) (*serverConn, bool) {
 
 func (p *TCPServer) setConn(connId string, conn *serverConn) {
 
-	log.Infof("setConn, connId: %s", connId)
+	log.Debugf("setConn, connId: %s", connId)
 
 	p.rw.Lock()
 	p.m[connId] = conn
@@ -223,7 +223,7 @@ func (p *serverConn) handleClientWrite(rw http.ResponseWriter, req *http.Request
 
 	p.readSeqId = seqId
 
-	log.Infof("handle client write, connId: %s, seqId: %d", p.connId, seqId)
+	log.Debugf("handle client write, connId: %s, seqId: %d", p.connId, seqId)
 
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
