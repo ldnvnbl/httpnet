@@ -174,14 +174,20 @@ func (p *serverConn) Close() error {
 }
 
 func (p *serverConn) handleClientRead(rw http.ResponseWriter, req *http.Request) {
-	data := <-p.writeChan
-	p.writeSeqId++
-	rw.WriteHeader(http.StatusOK)
-	rw.Header().Set("seq-id", strconv.FormatUint(p.writeSeqId, 10))
-	rw.Header().Set("size", strconv.Itoa(len(data)))
-	_, err := rw.Write(data)
-	if err != nil {
-		log.Errorf("write data to client failed: %v", err)
+	select {
+	case data := <-p.writeChan:
+		p.writeSeqId++
+		rw.WriteHeader(http.StatusOK)
+		rw.Header().Set("seq-id", strconv.FormatUint(p.writeSeqId, 10))
+		rw.Header().Set("size", strconv.Itoa(len(data)))
+		_, err := rw.Write(data)
+		if err != nil {
+			log.Errorf("write data to client failed: %v", err)
+			return
+		}
+	case <-time.After(time.Second * 10):
+		log.Debugf("server conn response continue, connId: %s", p.connId)
+		rw.WriteHeader(http.StatusContinue)
 		return
 	}
 }

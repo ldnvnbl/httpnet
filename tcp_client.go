@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -65,18 +66,34 @@ type clientConn struct {
 
 	writeSeqId uint64
 	readSeqId  uint64
+
+	isClosed bool
 }
 
 func (p *clientConn) Read(b []byte) (n int, err error) {
-	resp, err := p.restyClient.R().
-		SetHeader("action", "read").
-		SetHeader("max-size", strconv.Itoa(len(b))).
-		SetHeader("conn-id", p.connId).
-		Post(p.serverURL)
+	if p.isClosed {
+		return 0, &net.OpError{Op: "read", Err: errors.New("connection is closed")}
+	}
 
-	if err != nil {
-		log.Errorf("client conn read failed: %v", err)
-		return
+	var resp *resty.Response
+	// max wait 30*10 seconds
+	for i := 0; i < 30; i++ {
+		resp, err = p.restyClient.R().
+			SetHeader("action", "read").
+			SetHeader("max-size", strconv.Itoa(len(b))).
+			SetHeader("conn-id", p.connId).
+			Post(p.serverURL)
+
+		if err != nil {
+			log.Errorf("client conn read failed: %v", err)
+			return
+		}
+
+		if resp.StatusCode() != http.StatusContinue {
+			break
+		}
+
+		log.Infof("client conn read with continue, connId: %s", p.connId)
 	}
 
 	if resp.StatusCode() != 200 {
@@ -129,6 +146,10 @@ func (p *clientConn) Read(b []byte) (n int, err error) {
 }
 
 func (p *clientConn) Write(b []byte) (n int, err error) {
+	if p.isClosed {
+		return 0, &net.OpError{Op: "write", Err: errors.New("connection is closed")}
+	}
+
 	p.writeSeqId++
 	resp, err := p.restyClient.R().
 		SetHeader("action", actionWrite).
@@ -167,7 +188,11 @@ func (p *clientConn) Write(b []byte) (n int, err error) {
 }
 
 func (p *clientConn) Close() error {
-	log.Infof("client close connection, id: %s", p.connId)
+
+	p.isClosed = true
+
+	log.Debugf("client close connection, id: %s", p.connId)
+
 	resp, err := p.restyClient.R().
 		SetHeader("action", actionClose).
 		SetHeader("conn-id", p.connId).
@@ -179,7 +204,7 @@ func (p *clientConn) Close() error {
 	}
 
 	if resp.StatusCode() != 200 {
-		err = fmt.Errorf("tcp client conn close failed, not 200")
+		err = fmt.Errorf("tcp client conn close failed, status code: %d, resp: %s", resp.StatusCode(), resp.Body())
 		return err
 	}
 	return nil
